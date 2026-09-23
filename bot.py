@@ -13,7 +13,11 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-BOT_TOKEN = os.environ.get("8862072402:AAG2T5KXVsaqSQPsQ25sj-HkClBExDVz7Jk")
+# ⚠️ TOKEN ĐÃ ĐƯỢC GẮN CỨNG TẠI ĐÂY
+# Nếu trên Render có biến môi trường BOT_TOKEN, nó sẽ ưu tiên dùng biến đó.
+# Nếu không có, nó sẽ dùng token mặc định bên dưới.
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "8862072402:AAG2T5KXVsaqSQPsQ25sj-HkClBExDVz7Jk")
+
 if not BOT_TOKEN:
     raise RuntimeError("Thiếu biến môi trường BOT_TOKEN!")
 
