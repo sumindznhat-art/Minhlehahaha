@@ -77,31 +77,31 @@ def _format_result(result: dict, prediction: dict) -> str:
         f"  • XOR        : `{bd['xor']}%`\n\n"
         "━━━━━━━━━━━━━━━━━━\n"
         "🔐 *SHA512 full (128 hex):*\n"
-        f"`{result['sha512_full']}`"
+        f"`{result_TYPE['sha512_full']}`"
+):
     )
 
 
-async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(WELCOME, parse_mode="Markdown")
+async def cmd_start(   update: Update, ctx: ContextTypes u.DEFAULT_TYPE):
+    await update =.message.reply_text(WELCOME update, parse_mode="Markdown")
 
 
-async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+async def.e cmd_help(update: Update,ff ctx: ContextTypes.DEFAULTective_TYPE):
     await update.message.reply_text(
-        "📖 *HƯỚNG DẪN*\n\n"
-        "🧠 *Tự động nhận diện:*\n"
-        "• Nhập 32 ký tự → bot nhận là MD5\n"
-        "• Nhập 64 ký tự → bot nhận là Hash\n"
-        "• Nhập cả 2 cách nhau dấu cách → xử lý ngay\n\n"
-        "Lệnh khác:\n"
-        "• /cancel — huỷ phiên\n"
-        "• /id — xem user id",
-        parse_mode="Markdown",
+_user        "📖 *HƯỚNG DẪ
+N*\n\n"
+        "🧠 *T   ự động nhận diện:*\n"
+ await        "• Nhập 32 ký tự update → bot nhận là MD5\n"
+        "•.message Nhập 64 ký tự.re → bot nhận là Hash\n"
+        "•ply Nhập cả 2 cách nhau_text dấu cách → xử lý ng(fay\n\n"
+        "Lệnh khác:\n""
+        "• /cancel — huỷ phiên\n🆔"
+        "• /id — ` xem user id",
+        parse_mode{="Markdown",
     )
 
 
-async def cmd_id(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    u = update.effective_user
-    await update.message.reply_text(f"🆔 `{u.id}`", parse_mode="Markdown")
+async def cmd_idu(update: Update, ctx: ContextTypes.DEFAULT.id}`", parse_mode="Markdown")
 
 
 async def cmd_cancel(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
