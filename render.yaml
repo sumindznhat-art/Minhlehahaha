@@ -1,0 +1,12 @@
+services:
+  - type: worker
+    name: tele-md5-bot
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot.py
+    envVars:
+      - key: BOT_TOKEN
+        sync: false        # nhập thủ công trên dashboard
+      - key: PYTHON_VERSION
+        value: 3.12.4
