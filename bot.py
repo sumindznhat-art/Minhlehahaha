@@ -40,8 +40,7 @@ def _is_hex(s: str, length: int) -> bool:
     return len(s) == length and all(c in "0123456789abcdef" for c in s.lower())
 
 
-def _detect_type(token: str) -> str | None:
-    """Nhận diện loại input: 'md5', 'hash' hoặc None."""
+def _detect_type(token: str):
     if _is_hex(token, 32):
         return "md5"
     if _is_hex(token, 64):
@@ -55,7 +54,6 @@ def _format_result(result: dict, prediction: dict) -> str:
     emoji = "🔴" if pred == "TÀI" else "🔵"
     bar_len = int(conf / 5)
     bar = "█" * bar_len + "░" * (20 - bar_len)
-
     bd = prediction["breakdown"]
 
     return (
@@ -94,16 +92,6 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "• Nhập 32 ký tự → bot nhận là MD5\n"
         "• Nhập 64 ký tự → bot nhận là Hash\n"
         "• Nhập cả 2 cách nhau dấu cách → xử lý ngay\n\n"
-        "🎯 *Dự đoán Tài/Xỉu:*\n"
-        "Dùng thuật toán 6 tầng:\n"
-        "1. Tần suất hex\n"
-        "2. Trọng số vị trí\n"
-        "3. Hash chain\n"
-        "4. Entropy\n"
-        "5. Rolling XOR\n"
-        "6. Tổng hợp có trọng số\n\n"
-        "⚠️ *Lưu ý:* Đây là phân tích toán học, "
-        "KHÔNG đảm bảo thắng 100%. Chơi có trách nhiệm.\n\n"
         "Lệnh khác:\n"
         "• /cancel — huỷ phiên\n"
         "• /id — xem user id",
@@ -122,7 +110,6 @@ async def cmd_cancel(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 async def _process(update: Update, md5: str, hash64: str):
-    """Xử lý khi đã có đủ MD5 + Hash."""
     try:
         result = advanced_algorithm(md5, hash64)
         prediction = predict_tai_xiu(md5, hash64, result["result"])
@@ -141,15 +128,12 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     text = (update.message.text or "").strip().lower()
     state = user_state.get(uid, {})
-
-    # ═══════ Tách các token ra ═══════
     tokens = text.split()
 
-    # ═══════ Trường hợp 2 token trên 1 dòng ═══════
+    # Trường hợp gửi 2 token cùng lúc
     if len(tokens) == 2:
         t1, t2 = tokens
         d1, d2 = _detect_type(t1), _detect_type(t2)
-
         if d1 == "md5" and d2 == "hash":
             user_state.pop(uid, None)
             await _process(update, t1, t2)
@@ -158,41 +142,31 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             user_state.pop(uid, None)
             await _process(update, t2, t1)
             return
-
-        await update.message.reply_text(
-            "⚠️ Không nhận diện được. Cần 1 MD5 (32 hex) và 1 Hash (64 hex).",
-        )
+        await update.message.reply_text("⚠️ Cần 1 MD5 (32 hex) và 1 Hash (64 hex).")
         return
 
-    # ═══════ Trường hợp 1 token — auto-detect ═══════
+    # Trường hợp gửi 1 token (auto-detect)
     if len(tokens) == 1:
         token = tokens[0]
         dtype = _detect_type(token)
 
         if dtype is None:
             await update.message.reply_text(
-                "⚠️ Không nhận diện được!\n\n"
-                "• MD5 phải là *32 ký tự hex*\n"
-                "• Hash phải là *64 ký tự hex*\n\n"
-                "Gõ /help để xem hướng dẫn.",
-                parse_mode="Markdown",
+                "⚠️ Không nhận diện được!\n"
+                "• MD5: 32 ký tự hex\n• Hash: 64 ký tự hex",
             )
             return
 
-        # Đã có state trước đó?
         if dtype == "md5":
             state["md5"] = token
             if "hash" in state:
-                # Đủ cả 2 → xử lý
                 hash64 = state.pop("hash")
                 user_state.pop(uid, None)
                 await _process(update, token, hash64)
                 return
-            # Chỉ mới có MD5 → chờ Hash
             user_state[uid] = state
             await update.message.reply_text(
-                "🔍 Đã nhận diện: *MD5* (32 ký tự)\n"
-                "👉 Giờ gửi tiếp *HASH* (64 ký tự).",
+                "🔍 Đã nhận diện: *MD5* (32 ký tự)\n👉 Gửi tiếp *HASH* (64 ký tự).",
                 parse_mode="Markdown",
             )
             return
@@ -206,16 +180,12 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 return
             user_state[uid] = state
             await update.message.reply_text(
-                "🔍 Đã nhận diện: *HASH* (64 ký tự)\n"
-                "👉 Giờ gửi tiếp *MD5* (32 ký tự).",
+                "🔍 Đã nhận diện: *HASH* (64 ký tự)\n👉 Gửi tiếp *MD5* (32 ký tự).",
                 parse_mode="Markdown",
             )
             return
 
-    # ═══════ Nhiều hơn 2 token ═══════
-    await update.message.reply_text(
-        "⚠️ Cú pháp không đúng. Gõ /help để xem hướng dẫn.",
-    )
+    await update.message.reply_text("⚠️ Cú pháp không đúng. Gõ /help để xem hướng dẫn.")
 
 
 def build_app() -> Application:
