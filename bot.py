@@ -1,54 +1,122 @@
-import hashlib
+import os
+import logging
+from telegram import Update
+from telegram.ext import (
+    Application, CommandHandler, MessageHandler,
+    filters, ContextTypes,
+)
+from crypto import advanced_algorithm
 
-def _validate_hex(value: str, length: int, name: str) -> str:
-    """Kiểm tra chuỗi hex hợp lệ và đúng độ dài."""
-    value = value.strip().lower()
-    if len(value) != length:
-        raise ValueError(f"{name} phải đúng {length} ký tự (bạn nhập {len(value)}).")
-    if any(c not in "0123456789abcdef" for c in value):
-        raise ValueError(f"{name} chỉ được chứa ký tự hex (0-9, a-f).")
-    return value
+logging.basicConfig(
+    format="%(asctime)s | %(levelname)s | %(message)s",
+    level=logging.INFO,
+)
+log = logging.getLogger(__name__)
 
-def advanced_algorithm(md5_input: str, hash_input: str) -> dict:
-    """
-    Thuật toán nâng cao kết hợp MD5 (32) và Hash (64):
-    1. Validate đầu vào.
-    2. Nhân đôi MD5 -> 64 ký tự.
-    3. XOR(md5_x2, hash) -> lớp 1.
-    4. SHA256(md5 + hash) -> salt.
-    5. XOR(salt, hash) -> lớp 2.
-    6. SHA512(xor1 + xor2) -> 128 ký tự.
-    7. Lấy 64 ký tự đầu làm kết quả chính.
-    8. Tạo signature 8 ký tự từ MD5(kết quả).
-    """
-    md5 = _validate_hex(md5_input, 32, "MD5")
-    h64 = _validate_hex(hash_input, 64, "Hash")
+BOT_TOKEN = os.environ.get("8862072402:AAG2T5KXVsaqSQPsQ25sj-HkClBExDVz7Jk")
+if not BOT_TOKEN:
+    raise RuntimeError("Thiếu biến môi trường BOT_TOKEN!")
 
-    # Bước 1: Nhân đôi MD5
-    md5_x2 = md5 + md5
+user_state: dict[int, dict] = {}
 
-    # Bước 2: XOR md5_x2 với hash
-    xor1 = "".join(format(int(a, 16) ^ int(b, 16), "x") for a, b in zip(md5_x2, h64))
+WELCOME = (
+    "👋 *Tool MD5 + Hash Custom Algorithm*\n\n"
+    "Gửi cho tôi theo cú pháp:\n"
+    "`<MD5_32> <HASH_64>`\n\n"
+    "Ví dụ:\n"
+    "`d41d8cd98f00b204e9800998ecf8427e "
+    "e3b0c44298fc1c149afbf4c8996fb924"
+    "27ae41e4649b934ca495991b7852b855`\n\n"
+    "Hoặc dùng /step để nhập từng bước."
+)
 
-    # Bước 3: Tạo salt từ SHA256
-    sha256_salt = hashlib.sha256((md5 + h64).encode()).hexdigest()
+async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(WELCOME, parse_mode="Markdown")
 
-    # Bước 4: XOR salt với hash
-    xor2 = "".join(format(int(a, 16) ^ int(b, 16), "x") for a, b in zip(sha256_salt, h64))
+async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "📖 *Hướng dẫn*\n"
+        "• Gửi `md5 hash` trên 1 dòng\n"
+        "• /step — nhập tuần tự MD5 → Hash\n"
+        "• /cancel — huỷ phiên\n"
+        "• /id — xem user id",
+        parse_mode="Markdown",
+    )
 
-    # Bước 5: Băm SHA512
-    sha512_full = hashlib.sha512((xor1 + xor2).encode()).hexdigest()
+async def cmd_id(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    u = update.effective_user
+    await update.message.reply_text(f"🆔 `{u.id}`", parse_mode="Markdown")
 
-    # Bước 6: Lấy kết quả
-    result = sha512_full[:64]
-    signature = hashlib.md5(result.encode()).hexdigest()[:8]
+async def cmd_step(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id
+    user_state[uid] = {"step": "md5"}
+    await update.message.reply_text("🔹 Bước 1/2: Gửi **MD5** (32 ký tự hex).", parse_mode="Markdown")
 
-    return {
-        "md5": md5,
-        "hash": h64,
-        "xor1": xor1,
-        "xor2": xor2,
-        "sha512_full": sha512_full,
-        "result": result,
-        "signature": signature,
-    }
+async def cmd_cancel(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    user_state.pop(update.effective_user.id, None)
+    await update.message.reply_text("❌ Đã huỷ phiên.")
+
+def _format_result(r: dict) -> str:
+    return (
+        "✅ *KẾT QUẢ*\n\n"
+        f"🔸 MD5   : `{r['md5']}`\n"
+        f"🔸 Hash  : `{r['hash']}`\n"
+        f"🔸 Sig   : `{r['signature']}`\n\n"
+        "🎯 *RESULT (64 hex):*\n"
+        f"`{r['result']}`\n\n"
+        "🔐 *SHA512 full (128 hex):*\n"
+        f"`{r['sha512_full']}`"
+    )
+
+async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id
+    text = (update.message.text or "").strip()
+    state = user_state.get(uid)
+
+    try:
+        if state:
+            if state["step"] == "md5":
+                if len(text) != 32:
+                    raise ValueError("MD5 phải đúng 32 ký tự.")
+                state["md5"] = text
+                state["step"] = "hash"
+                await update.message.reply_text("🔹 Bước 2/2: Gửi **Hash** (64 ký tự hex).", parse_mode="Markdown")
+                return
+            if state["step"] == "hash":
+                md5 = state["md5"]
+                user_state.pop(uid, None)
+                result = advanced_algorithm(md5, text)
+                await update.message.reply_text(_format_result(result), parse_mode="Markdown")
+                return
+
+        parts = text.split()
+        if len(parts) != 2:
+            await update.message.reply_text(
+                "⚠️ Cần đúng 2 giá trị: `<MD5_32> <HASH_64>`.\nGõ /help để xem hướng dẫn.",
+                parse_mode="Markdown",
+            )
+            return
+
+        result = advanced_algorithm(parts[0], parts[1])
+        await update.message.reply_text(_format_result(result), parse_mode="Markdown")
+
+    except ValueError as e:
+        await update.message.reply_text(f"❌ Lỗi: {e}")
+    except Exception as e:
+        log.exception("Unexpected error")
+        await update.message.reply_text(f"💥 Lỗi hệ thống: {e}")
+
+def build_app() -> Application:
+    app = Application.builder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler("start", cmd_start))
+    app.add_handler(CommandHandler("help", cmd_help))
+    app.add_handler(CommandHandler("id", cmd_id))
+    app.add_handler(CommandHandler("step", cmd_step))
+    app.add_handler(CommandHandler("cancel", cmd_cancel))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+    return app
+
+def run_bot():
+    log.info("🚀 Bot starting (polling)...")
+    app = build_app()
+    app.run_polling(drop_pending_updates=True)
